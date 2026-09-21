@@ -47,7 +47,7 @@ export 'src/geometry/mesh_geometry.dart'
 export 'src/geometry/morph_targets.dart'
     show MorphTargetData, kMaxGpuMorphTargets;
 export 'src/geometry/morphed_geometry.dart'
-    show MorphedSkinnedGeometry, MorphedUnskinnedGeometry;
+    show MorphedSkinnedGeometry, MorphedUnskinnedGeometry, forceCpuMorphing;
 export 'src/geometry/primitives.dart'
     show
         CapsuleGeometry,

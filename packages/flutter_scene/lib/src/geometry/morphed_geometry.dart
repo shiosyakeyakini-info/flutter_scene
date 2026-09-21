@@ -119,6 +119,29 @@ class MorphedSkinnedGeometry extends SkinnedGeometry with _MorphBlending {
   }
 }
 
+/// Forces every morphed geometry onto the CPU blend path.
+///
+/// The GPU path sums the morph deltas inside the engine's own vertex shader.
+/// A material that supplies its own `vertex { }` stage replaces that shader,
+/// so it has no morph stage and its draws render the unmorphed base (see
+/// `TODO(morph-custom-materials)` in [_MorphBlending._bindMorphStage]). The
+/// CPU path instead writes the blended vertices back into the vertex buffer,
+/// so a custom vertex stage reads geometry that is already morphed.
+///
+/// Set this before any geometry is constructed — the path is chosen once, in
+/// the constructor. It is a global because the runtime glTF importer builds
+/// the geometry itself, so there is no per-geometry seam to pass a flag
+/// through.
+///
+/// The CPU path also blends *every* target rather than the highest-magnitude
+/// [kMaxGpuMorphTargets], which matters for faces driven by many small
+/// simultaneous weights.
+///
+/// Costs: a re-upload of the interleaved vertices whenever the weights
+/// change, and a geometry shared by nodes with differing weights re-blends
+/// per draw.
+bool forceCpuMorphing = false;
+
 /// Shared morph state and the two blend paths over the interleaved vertex
 /// layouts.
 ///
@@ -164,7 +187,7 @@ mixin _MorphBlending on Geometry {
   // Called by the subclass constructors.
   void _initMorphState(MorphTargetData data) {
     _morphData = data;
-    _packing = computeMorphTexturePacking(data);
+    _packing = forceCpuMorphing ? null : computeMorphTexturePacking(data);
   }
 
   @override
