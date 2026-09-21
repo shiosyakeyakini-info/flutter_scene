@@ -3,6 +3,7 @@
 /// normals averaged as vectors and renormalized).
 library;
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_scene/src/texture/mipmap.dart';
@@ -76,5 +77,79 @@ void main() {
     expect(mip[0], closeTo(128, 1));
     expect(mip[1], closeTo(128, 1));
     expect(mip[2], closeTo(255, 1));
+  });
+
+  // The sRGB transfer functions are tabulated (decode) and bisected over
+  // their own rounding boundaries (encode) rather than calling `pow` 15
+  // times per output pixel. That is a pure speedup and must not shift a
+  // single byte, so check it against the reference formulas directly.
+  test('color downsampling matches the reference sRGB transfer exactly', () {
+    double refToLinear(int byte) {
+      final c = byte / 255.0;
+      return c <= 0.04045
+          ? c / 12.92
+          : math.pow((c + 0.055) / 1.055, 2.4).toDouble();
+    }
+
+    int refToSrgb(double linear) {
+      final c = linear <= 0.0031308
+          ? linear * 12.92
+          : 1.055 * math.pow(linear, 1 / 2.4).toDouble() - 0.055;
+      return (c * 255.0).round().clamp(0, 255);
+    }
+
+    // Deterministic pseudo-random source: every 2x2 block is a different
+    // quadruple, so one pass covers a wide spread of averages.
+    const w = 256;
+    const h = 256;
+    final pixels = Uint8List(w * h * 4);
+    var seed = 12345;
+    for (var i = 0; i < pixels.length; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7FFFFFFF;
+      pixels[i] = (seed >> 16) & 0xFF;
+    }
+
+    final chain = generateMipChain(pixels, w, h, TextureContent.color);
+
+    // Recompute every level from its predecessor with the reference math.
+    var src = pixels;
+    var sw = w;
+    var sh = h;
+    for (var level = 1; level < chain.length; level++) {
+      final dw = math.max(1, sw >> 1);
+      final dh = math.max(1, sh >> 1);
+      final got = chain[level];
+      expect(got.width, dw);
+      expect(got.height, dh);
+      for (var y = 0; y < dh; y++) {
+        final y0 = math.min(y * 2, sh - 1);
+        final y1 = math.min(y0 + 1, sh - 1);
+        for (var x = 0; x < dw; x++) {
+          final x0 = math.min(x * 2, sw - 1);
+          final x1 = math.min(x0 + 1, sw - 1);
+          final a = (y0 * sw + x0) * 4;
+          final b = (y0 * sw + x1) * 4;
+          final c = (y1 * sw + x0) * 4;
+          final d = (y1 * sw + x1) * 4;
+          final o = (y * dw + x) * 4;
+          for (var ch = 0; ch < 3; ch++) {
+            final avg =
+                (refToLinear(src[a + ch]) +
+                    refToLinear(src[b + ch]) +
+                    refToLinear(src[c + ch]) +
+                    refToLinear(src[d + ch])) *
+                0.25;
+            expect(
+              got.pixels[o + ch],
+              refToSrgb(avg),
+              reason: 'level $level at ($x,$y) channel $ch',
+            );
+          }
+        }
+      }
+      src = got.pixels;
+      sw = dw;
+      sh = dh;
+    }
   });
 }
