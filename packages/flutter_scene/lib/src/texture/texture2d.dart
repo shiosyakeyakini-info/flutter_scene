@@ -7,6 +7,7 @@ import '../asset_helpers.dart';
 import '../gpu/gpu.dart' as gpu;
 import '../render/mip_sampling_probe.dart';
 import 'mipmap.dart';
+import 'mipmap_async.dart';
 
 /// Something a material can sample: it yields the GPU texture to sample for the
 /// current frame and the sampler to bind it with. Implemented by [Texture2D]
@@ -184,12 +185,22 @@ class Texture2D implements TextureSource {
     if (bytes == null) {
       throw Exception('Failed to read RGBA data from image.');
     }
-    return fromPixels(
-      bytes.buffer.asUint8List(),
-      image.width,
-      image.height,
-      content: content,
-      sampling: sampling,
+    // Build the mip chain off this isolate. It is the dominant cost of
+    // loading a large texture (a 4096x4096 image measured ~2.4s in debug)
+    // and it is pure pixel work, so leaving it here stalls the UI. The GPU
+    // upload that follows is comparatively free (~20ms) and has to stay.
+    final pixels = bytes.buffer.asUint8List();
+    final levels = sampling.mipmaps && mipChainsAreSampled
+        ? await generateMipChainAsync(pixels, image.width, image.height, content)
+        : <MipLevel>[MipLevel(image.width, image.height, pixels)];
+    return Texture2D._(
+      uploadMipLevels(
+        levels,
+        image.width,
+        image.height,
+        maxMipmapLevels: sampling.maxMipmapLevels,
+      ),
+      sampling.toSamplerOptions(),
     );
   }
 
