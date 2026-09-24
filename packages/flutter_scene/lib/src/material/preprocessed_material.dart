@@ -401,6 +401,38 @@ class PreprocessedMaterial extends Material implements HotReloadableFmat {
   @override
   bool isOpaque() => _blending == FmatBlending.opaque;
 
+  /// How this instance composites its alpha.
+  ///
+  /// Defaults to the `blending` declared in the `.fmat`. Setting it lets one
+  /// loaded `.fmat` serve both opaque and alpha-blended draws, which matters
+  /// when the render state is a property of the *data* rather than of the
+  /// shader — glTF's `alphaMode`, for instance, varies per material while the
+  /// shader is the same for all of them.
+  ///
+  /// Note that [updateFromMetadata] (a hot-reloaded `.fmat`) re-reads the
+  /// declared value and discards an override set here.
+  // The getter carries the doc comment, and the field is also written by
+  // updateFromMetadata, so it stays private.
+  // ignore: unnecessary_getters_setters
+  FmatBlending get blending => _blending;
+  set blending(FmatBlending value) => _blending = value;
+
+  /// Which triangle faces this instance culls.
+  ///
+  /// Defaults to the `culling` declared in the `.fmat`. See [blending] for
+  /// why overriding is useful, and for the hot-reload caveat.
+  // ignore: unnecessary_getters_setters
+  FmatCulling get culling => _culling;
+  set culling(FmatCulling value) => _culling = value;
+
+  /// Whether this instance writes depth when drawn in the translucent pass.
+  ///
+  /// Defaults to the `depth_write` declared in the `.fmat`. See [blending] for
+  /// why overriding is useful, and for the hot-reload caveat.
+  // ignore: unnecessary_getters_setters
+  bool get depthWrite => _depthWrite;
+  set depthWrite(bool value) => _depthWrite = value;
+
   @override
   @internal
   bool get depthAlphaMasked => _depthMaskTexture != null;

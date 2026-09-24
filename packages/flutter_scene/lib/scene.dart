@@ -96,6 +96,9 @@ export 'src/material/material_parameters.dart' show MaterialParameters;
 export 'src/material/physically_based_material.dart'
     show AlphaMode, PhysicallyBasedMaterial, TextureTransform;
 export 'src/material/preprocessed_material.dart' show PreprocessedMaterial;
+// The render-state vocabulary a `.fmat` declares. Exported because
+// [PreprocessedMaterial] now lets an instance override these.
+export 'src/fmat/fmat_ast.dart' show FmatBlending, FmatCulling;
 export 'src/material/preprocessed_sky.dart' show PreprocessedSky;
 export 'src/material/shader_material.dart'
     show ShaderInstanceAttribute, ShaderInstanceAttributeType, ShaderMaterial;
